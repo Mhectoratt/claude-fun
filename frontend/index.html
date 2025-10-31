@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Extractor</title>
+
+    <!-- React and Babel from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e8e9ff;
+        }
+
+        .tab {
+            background: none;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            color: #666;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+
+        .upload-section {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f8f9ff;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: #f0f1ff;
+        }
+
+        .upload-section.dragover {
+            border-color: #764ba2;
+            background: #e8e9ff;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .upload-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .upload-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .file-info {
+            margin: 15px 0;
+            padding: 10px;
+            background: #e8e9ff;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .control-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 100px;
+        }
+
+        .extract-button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 15px;
+        }
+
+        .extract-button:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .extract-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-block;
+            margin-left: 10px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-section {
+            margin-top: 30px;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .result-header h2 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .copy-button, .download-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: 10px;
+        }
+
+        .copy-button:hover, .download-button:hover {
+            background: #5568d3;
+        }
+
+        .result-text {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .thumbnail-preview {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+        }
+
+        .thumbnail-preview img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            border: 1px solid #fcc;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            border: 1px solid #cfc;
+            font-size: 14px;
+        }
+
+        .supported-formats {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .format-badge {
+            display: inline-block;
+            background: #e8e9ff;
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin: 2px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('extract');
+
+            return (
+                <div className="container">
+                    <h1>📄 Content Extractor</h1>
+                    <p className="subtitle">Extract text or create thumbnails from your documents</p>
+
+                    <div className="tabs">
+                        <button
+                            className={`tab ${activeTab === 'extract' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('extract')}
+                        >
+                            📄 Extract Text
+                        </button>
+                        <button
+                            className={`tab ${activeTab === 'thumbnail' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('thumbnail')}
+                        >
+                            🖼️ Create Thumbnail
+                        </button>
+                    </div>
+
+                    {activeTab === 'extract' ? <TextExtractor /> : <ThumbnailCreator />}
+                </div>
+            );
+        }
+
+        function TextExtractor() {
+            const [file, setFile] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [extractedText, setExtractedText] = useState('');
+            const [error, setError] = useState('');
+            const [copySuccess, setCopySuccess] = useState(false);
+            const [dragOver, setDragOver] = useState(false);
+
+            const handleFileChange = (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile) {
+                    setFile(selectedFile);
+                    setError('');
+                    setExtractedText('');
+                }
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                setDragOver(true);
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const droppedFile = e.dataTransfer.files[0];
+                if (droppedFile) {
+                    setFile(droppedFile);
+                    setError('');
+                    setExtractedText('');
+                }
+            };
+
+            const handleExtract = async () => {
+                if (!file) return;
+
+                setLoading(true);
+                setError('');
+                setExtractedText('');
+                setCopySuccess(false);
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('http://localhost:8080/api/content/extractText', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        setExtractedText(data.text);
+                    } else {
+                        setError(data.error || 'Failed to extract text');
+                    }
+                } catch (err) {
+                    setError('Error connecting to server: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleCopy = () => {
+                navigator.clipboard.writeText(extractedText);
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
+            };
+
+            const formatFileSize = (bytes) => {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            };
+
+            return (
+                <>
+                    <div
+                        className={`upload-section ${dragOver ? 'dragover' : ''}`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
+                        <input
+                            type="file"
+                            id="fileInput"
+                            className="file-input"
+                            onChange={handleFileChange}
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.html,.htm"
+                        />
+                        <label htmlFor="fileInput">
+                            <button
+                                className="upload-button"
+                                onClick={() => document.getElementById('fileInput').click()}
+                                type="button"
+                            >
+                                Choose File
+                            </button>
+                        </label>
+                        <p style={{marginTop: '10px', color: '#666'}}>or drag and drop a file here</p>
+
+                        {file && (
+                            <div className="file-info">
+                                <strong>{file.name}</strong> ({formatFileSize(file.size)})
+                            </div>
+                        )}
+
+                        {file && (
+                            <button
+                                className="extract-button"
+                                onClick={handleExtract}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <>
+                                        Extracting Text
+                                        <span className="loading">⏳</span>
+                                    </>
+                                ) : (
+                                    'Extract Text'
+                                )}
+                            </button>
+                        )}
+
+                        <div className="supported-formats">
+                            <strong>Supported formats:</strong><br/>
+                            <span className="format-badge">PDF</span>
+                            <span className="format-badge">DOC</span>
+                            <span className="format-badge">DOCX</span>
+                            <span className="format-badge">XLS</span>
+                            <span className="format-badge">XLSX</span>
+                            <span className="format-badge">HTML</span>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="error">
+                            <strong>Error:</strong> {error}
+                        </div>
+                    )}
+
+                    {copySuccess && (
+                        <div className="success">
+                            ✓ Text copied to clipboard!
+                        </div>
+                    )}
+
+                    {extractedText && (
+                        <div className="result-section">
+                            <div className="result-header">
+                                <h2>Extracted Text</h2>
+                                <button className="copy-button" onClick={handleCopy}>
+                                    📋 Copy to Clipboard
+                                </button>
+                            </div>
+                            <div className="result-text">
+                                {extractedText}
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        function ThumbnailCreator() {
+            const [file, setFile] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [thumbnail, setThumbnail] = useState(null);
+            const [error, setError] = useState('');
+            const [dragOver, setDragOver] = useState(false);
+            const [width, setWidth] = useState(200);
+            const [height, setHeight] = useState(200);
+            const [pageNumber, setPageNumber] = useState(1);
+
+            const isPDF = file && file.name.toLowerCase().endsWith('.pdf');
+
+            const handleFileChange = (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile) {
+                    setFile(selectedFile);
+                    setError('');
+                    setThumbnail(null);
+                }
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                setDragOver(true);
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const droppedFile = e.dataTransfer.files[0];
+                if (droppedFile) {
+                    setFile(droppedFile);
+                    setError('');
+                    setThumbnail(null);
+                }
+            };
+
+            const handleCreateThumbnail = async () => {
+                if (!file) return;
+
+                setLoading(true);
+                setError('');
+                setThumbnail(null);
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('width', width);
+                formData.append('height', height);
+
+                let endpoint = 'http://localhost:8080/api/content/createThumbnail';
+
+                if (isPDF) {
+                    endpoint = 'http://localhost:8080/api/content/createPdfPageThumbnail';
+                    formData.append('page', pageNumber);
+                }
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        setThumbnail({
+                            base64: data.thumbnailBase64,
+                            width: data.thumbnailWidth,
+                            height: data.thumbnailHeight,
+                            format: data.format
+                        });
+                    } else {
+                        setError(data.error || 'Failed to create thumbnail');
+                    }
+                } catch (err) {
+                    setError('Error connecting to server: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleDownload = () => {
+                if (!thumbnail) return;
+
+                const link = document.createElement('a');
+                link.href = `data:image/${thumbnail.format};base64,${thumbnail.base64}`;
+                link.download = `thumbnail.${thumbnail.format}`;
+                link.click();
+            };
+
+            const formatFileSize = (bytes) => {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            };
+
+            return (
+                <>
+                    <div
+                        className={`upload-section ${dragOver ? 'dragover' : ''}`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
+                        <input
+                            type="file"
+                            id="thumbnailFileInput"
+                            className="file-input"
+                            onChange={handleFileChange}
+                            accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp"
+                        />
+                        <label htmlFor="thumbnailFileInput">
+                            <button
+                                className="upload-button"
+                                onClick={() => document.getElementById('thumbnailFileInput').click()}
+                                type="button"
+                            >
+                                Choose File
+                            </button>
+                        </label>
+                        <p style={{marginTop: '10px', color: '#666'}}>or drag and drop a file here</p>
+
+                        {file && (
+                            <div className="file-info">
+                                <strong>{file.name}</strong> ({formatFileSize(file.size)})
+                            </div>
+                        )}
+
+                        {file && (
+                            <div className="controls">
+                                <div className="control-group">
+                                    <label>Width (px)</label>
+                                    <input
+                                        type="number"
+                                        value={width}
+                                        onChange={(e) => setWidth(Number(e.target.value))}
+                                        min="50"
+                                        max="1000"
+                                    />
+                                </div>
+                                <div className="control-group">
+                                    <label>Height (px)</label>
+                                    <input
+                                        type="number"
+                                        value={height}
+                                        onChange={(e) => setHeight(Number(e.target.value))}
+                                        min="50"
+                                        max="1000"
+                                    />
+                                </div>
+                                {isPDF && (
+                                    <div className="control-group">
+                                        <label>Page Number</label>
+                                        <input
+                                            type="number"
+                                            value={pageNumber}
+                                            onChange={(e) => setPageNumber(Number(e.target.value))}
+                                            min="1"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {file && (
+                            <button
+                                className="extract-button"
+                                onClick={handleCreateThumbnail}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <>
+                                        Creating Thumbnail
+                                        <span className="loading">⏳</span>
+                                    </>
+                                ) : (
+                                    'Create Thumbnail'
+                                )}
+                            </button>
+                        )}
+
+                        <div className="supported-formats">
+                            <strong>Supported formats:</strong><br/>
+                            <span className="format-badge">PDF</span>
+                            <span className="format-badge">JPG</span>
+                            <span className="format-badge">PNG</span>
+                            <span className="format-badge">GIF</span>
+                            <span className="format-badge">BMP</span>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="error">
+                            <strong>Error:</strong> {error}
+                        </div>
+                    )}
+
+                    {thumbnail && (
+                        <div className="result-section">
+                            <div className="result-header">
+                                <h2>Thumbnail ({thumbnail.width}x{thumbnail.height})</h2>
+                                <button className="download-button" onClick={handleDownload}>
+                                    💾 Download
+                                </button>
+                            </div>
+                            <div className="thumbnail-preview">
+                                <img
+                                    src={`data:image/${thumbnail.format};base64,${thumbnail.base64}`}
+                                    alt="Generated thumbnail"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
