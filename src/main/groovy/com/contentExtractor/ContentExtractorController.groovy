@@ -112,4 +112,40 @@ class ContentExtractorController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
         }
     }
+
+    @PostMapping(value = "/convertPdfPageToJpg", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ResponseEntity<ThumbnailResponse> convertPdfPageToJpg(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "page", defaultValue = "1") Integer pageNumber,
+            @RequestParam(value = "dpi", defaultValue = "300") Integer dpi) {
+        try {
+            def inputStream = file.getInputStream()
+            def imageData = contentExtractorService.convertPdfPageToJpg(
+                inputStream,
+                file.getOriginalFilename(),
+                pageNumber,
+                dpi
+            )
+
+            def response = new ThumbnailResponse(
+                success: true,
+                thumbnailBase64: imageData.base64Image,
+                originalFileName: file.getOriginalFilename(),
+                originalFileSize: file.getSize(),
+                thumbnailWidth: imageData.width,
+                thumbnailHeight: imageData.height,
+                format: imageData.format
+            )
+
+            return ResponseEntity.ok(response)
+        } catch (Exception e) {
+            def errorResponse = new ThumbnailResponse(
+                success: false,
+                thumbnailBase64: null,
+                originalFileName: file.getOriginalFilename(),
+                error: e.getMessage()
+            )
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
+        }
+    }
 }

@@ -341,6 +341,64 @@ class ContentExtractorService {
         }
     }
 
+    /**
+     * Converts a specific page of a PDF document to a full-size JPG image
+     *
+     * @param inputStream The stream containing the PDF data
+     * @param fileName The original file name
+     * @param pageNumber The page number to render (1-indexed)
+     * @param dpi The DPI (dots per inch) for rendering quality (default 300)
+     * @return A map containing the base64-encoded image and metadata
+     */
+    Map<String, Object> convertPdfPageToJpg(InputStream inputStream, String fileName, Integer pageNumber, Integer dpi) {
+        PDDocument document = null
+        try {
+            // Load the PDF document
+            document = Loader.loadPDF(inputStream.readAllBytes())
+
+            // Validate page number (convert from 1-indexed to 0-indexed)
+            int pageIndex = pageNumber - 1
+            if (pageIndex < 0 || pageIndex >= document.getNumberOfPages()) {
+                throw new IllegalArgumentException("Invalid page number: ${pageNumber}. PDF has ${document.getNumberOfPages()} pages.")
+            }
+
+            // Validate DPI
+            if (dpi < 72 || dpi > 600) {
+                throw new IllegalArgumentException("DPI must be between 72 and 600. Provided: ${dpi}")
+            }
+
+            // Create PDF renderer
+            PDFRenderer pdfRenderer = new PDFRenderer(document)
+
+            // Render the page to a full-size image at the specified DPI
+            BufferedImage pageImage = pdfRenderer.renderImageWithDPI(pageIndex, dpi as float)
+
+            // Convert to JPG and encode as base64
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream()
+            ImageIO.write(pageImage, 'jpg', outputStream)
+            byte[] imageBytes = outputStream.toByteArray()
+            String base64Image = Base64.getEncoder().encodeToString(imageBytes)
+
+            return [
+                base64Image: base64Image,
+                width: pageImage.getWidth(),
+                height: pageImage.getHeight(),
+                format: 'jpg'
+            ]
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to convert PDF page to JPG: ${e.message}", e)
+        } finally {
+            // Close the document to free resources
+            if (document != null) {
+                try {
+                    document.close()
+                } catch (Exception e) {
+                    // Log but don't throw - we already have the image
+                }
+            }
+        }
+    }
+
     private String getImageFormat(String fileName) {
         def extension = getFileExtension(fileName)?.toLowerCase()
 

@@ -292,6 +292,90 @@
             margin: 2px;
             font-weight: 500;
         }
+
+        .pdf-nav-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .nav-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none;
+        }
+
+        .page-indicator {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            padding: 10px 20px;
+            background: #e8e9ff;
+            border-radius: 6px;
+        }
+
+        .pdf-image-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 20px;
+            min-height: 500px;
+        }
+
+        .pdf-image-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .dpi-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dpi-selector label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .dpi-selector select {
+            padding: 8px 12px;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+        }
     </style>
 </head>
 <body>
@@ -321,9 +405,17 @@
                         >
                             🖼️ Create Thumbnail
                         </button>
+                        <button
+                            className={`tab ${activeTab === 'pdfviewer' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('pdfviewer')}
+                        >
+                            📖 PDF Viewer
+                        </button>
                     </div>
 
-                    {activeTab === 'extract' ? <TextExtractor /> : <ThumbnailCreator />}
+                    {activeTab === 'extract' && <TextExtractor />}
+                    {activeTab === 'thumbnail' && <ThumbnailCreator />}
+                    {activeTab === 'pdfviewer' && <PdfViewer />}
                 </div>
             );
         }
@@ -719,6 +811,267 @@
                                 />
                             </div>
                         </div>
+                    )}
+                </>
+            );
+        }
+
+        function PdfViewer() {
+            const [file, setFile] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [currentPage, setCurrentPage] = useState(1);
+            const [pageImage, setPageImage] = useState(null);
+            const [error, setError] = useState('');
+            const [dragOver, setDragOver] = useState(false);
+            const [dpi, setDpi] = useState(300);
+            const [hasMorePages, setHasMorePages] = useState(true);
+
+            const handleFileChange = (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile) {
+                    if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
+                        setError('Please select a PDF file');
+                        return;
+                    }
+                    setFile(selectedFile);
+                    setError('');
+                    setCurrentPage(1);
+                    setPageImage(null);
+                    setHasMorePages(true);
+                    // Auto-load first page
+                    loadPage(1, selectedFile, dpi);
+                }
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                setDragOver(true);
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const droppedFile = e.dataTransfer.files[0];
+                if (droppedFile) {
+                    if (!droppedFile.name.toLowerCase().endsWith('.pdf')) {
+                        setError('Please drop a PDF file');
+                        return;
+                    }
+                    setFile(droppedFile);
+                    setError('');
+                    setCurrentPage(1);
+                    setPageImage(null);
+                    setHasMorePages(true);
+                    // Auto-load first page
+                    loadPage(1, droppedFile, dpi);
+                }
+            };
+
+            const loadPage = async (pageNumber, pdfFile, dpiValue) => {
+                const fileToUse = pdfFile || file;
+                if (!fileToUse) return;
+
+                setLoading(true);
+                setError('');
+
+                const formData = new FormData();
+                formData.append('file', fileToUse);
+                formData.append('page', pageNumber);
+                formData.append('dpi', dpiValue);
+
+                try {
+                    const response = await fetch('http://localhost:8080/api/content/convertPdfPageToJpg', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        setPageImage({
+                            base64: data.thumbnailBase64,
+                            width: data.thumbnailWidth,
+                            height: data.thumbnailHeight
+                        });
+                        setCurrentPage(pageNumber);
+                        setHasMorePages(true);
+                    } else {
+                        // If error mentions invalid page, we've reached the end
+                        if (data.error && data.error.includes('Invalid page number')) {
+                            setHasMorePages(false);
+                            setError('Reached the end of the PDF');
+                        } else {
+                            setError(data.error || 'Failed to convert PDF page');
+                        }
+                    }
+                } catch (err) {
+                    setError('Error connecting to server: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handlePrevious = () => {
+                if (currentPage > 1) {
+                    loadPage(currentPage - 1, file, dpi);
+                }
+            };
+
+            const handleNext = () => {
+                if (hasMorePages) {
+                    loadPage(currentPage + 1, file, dpi);
+                }
+            };
+
+            const handleDpiChange = (e) => {
+                const newDpi = parseInt(e.target.value);
+                setDpi(newDpi);
+                if (file && currentPage) {
+                    loadPage(currentPage, file, newDpi);
+                }
+            };
+
+            const handleDownload = () => {
+                if (!pageImage) return;
+
+                const link = document.createElement('a');
+                link.href = `data:image/jpeg;base64,${pageImage.base64}`;
+                link.download = `page-${currentPage}.jpg`;
+                link.click();
+            };
+
+            // Keyboard navigation
+            React.useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (!file) return;
+
+                    if (e.key === 'ArrowLeft') {
+                        handlePrevious();
+                    } else if (e.key === 'ArrowRight') {
+                        handleNext();
+                    }
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [file, currentPage, hasMorePages]);
+
+            const formatFileSize = (bytes) => {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            };
+
+            return (
+                <>
+                    <div
+                        className={`upload-section ${dragOver ? 'dragover' : ''}`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
+                        <input
+                            type="file"
+                            id="pdfViewerFileInput"
+                            className="file-input"
+                            onChange={handleFileChange}
+                            accept=".pdf"
+                        />
+                        <label htmlFor="pdfViewerFileInput">
+                            <button
+                                className="upload-button"
+                                onClick={() => document.getElementById('pdfViewerFileInput').click()}
+                                type="button"
+                            >
+                                Choose PDF File
+                            </button>
+                        </label>
+                        <p style={{marginTop: '10px', color: '#666'}}>or drag and drop a PDF here</p>
+
+                        {file && (
+                            <div className="file-info">
+                                <strong>{file.name}</strong> ({formatFileSize(file.size)})
+                            </div>
+                        )}
+
+                        <div className="supported-formats">
+                            <strong>Supported format:</strong><br/>
+                            <span className="format-badge">PDF</span>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="error">
+                            <strong>Error:</strong> {error}
+                        </div>
+                    )}
+
+                    {file && (
+                        <div className="pdf-nav-controls">
+                            <button
+                                className="nav-btn"
+                                onClick={handlePrevious}
+                                disabled={currentPage <= 1 || loading}
+                            >
+                                <span>←</span> Previous
+                            </button>
+
+                            <div className="page-indicator">
+                                Page {currentPage}
+                            </div>
+
+                            <button
+                                className="nav-btn"
+                                onClick={handleNext}
+                                disabled={!hasMorePages || loading}
+                            >
+                                Next <span>→</span>
+                            </button>
+
+                            <div className="dpi-selector">
+                                <label>Quality:</label>
+                                <select value={dpi} onChange={handleDpiChange} disabled={loading}>
+                                    <option value="72">Low (72 DPI)</option>
+                                    <option value="150">Medium (150 DPI)</option>
+                                    <option value="300">High (300 DPI)</option>
+                                    <option value="600">Very High (600 DPI)</option>
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
+                    {loading && (
+                        <div style={{textAlign: 'center', padding: '20px'}}>
+                            <span className="loading" style={{fontSize: '24px'}}>⏳</span>
+                            <p>Converting page...</p>
+                        </div>
+                    )}
+
+                    {pageImage && !loading && (
+                        <>
+                            <div className="result-header">
+                                <h2>Page {currentPage}</h2>
+                                <button className="download-button" onClick={handleDownload}>
+                                    💾 Download JPG
+                                </button>
+                            </div>
+                            <div className="pdf-image-container">
+                                <img
+                                    src={`data:image/jpeg;base64,${pageImage.base64}`}
+                                    alt={`PDF Page ${currentPage}`}
+                                />
+                            </div>
+                            <div className="file-info" style={{marginTop: '15px'}}>
+                                <strong>Image Dimensions:</strong> {pageImage.width} × {pageImage.height} pixels
+                            </div>
+                        </>
                     )}
                 </>
             );
